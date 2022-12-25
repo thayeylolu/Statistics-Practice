@@ -1,0 +1,93 @@
+---
+title: "Bayesian Logistic Regression on Media Spending Data"
+author: "Taiwo Owoseni"
+date: "23/12/2022"
+output: pdf_document
+---
+
+## Introduction
+
+This analysis aims to use a Bayesian approach to build a logistic regression model that classifies the various campaigns overtime at the Division level. The data used the analysis was sourced from [Kaggle](https://www.kaggle.com/datasets/yugagrawal95/sample-media-spends-data). Visit to link to learn more about the data\
+
+## Import Libraries
+
+```{r library, include=FALSE}
+library(bayesrules)
+library(tidyverse)
+library(broom)
+library(rstan)
+library(bayesplot)
+#library(broom.mixed)
+library(cowplot)
+library(janitor)
+
+```
+
+## About the Data
+
+```{r load data}
+data <- read.csv("Sample Media Spend Data.csv")
+head(data)
+
+```
+
+```{r row and column count}
+paste( "Number of observations:",nrow(data))
+paste( "Number of observations:",ncol(data))
+
+```
+
+The data set contains 3051 observations and ten variables.
+
+## Statistical Inquiries
+
+Suppose we are interested in the following statistical inquiries:
+
+1.  How is continuous `Google_Impressions` associated with `Division`?
+
+2.  Is there a numerical result that can quantify this association?
+
+We are interested in the following variables:
+
+-   `Division`: Subjects division level. The various campaigns overtime at the Division level.. It is a categorical variable with 26 levels `A-Z` but for this study, we will focus on two levels `A and Z`
+
+-   `Google_Impressions` : The number of times content entered a subject's screen while on google. It's a continuous variable 
+
+For this study, `Division` is the `dependent` variable and `Google_Impressions` is the `independen`t variable.
+
+```{r filter data}
+nw.data <- data %>%
+  select(Google_Impressions, Division) |>
+  filter(Division %in%  c("A", "Z"))
+  
+levels(nw.data$Division)
+nw.data
+
+```
+
+### Scaling the Data
+
+```{r range of impression}
+paste('The lowest impression in the data is: ', min(nw.data$Google_Impressions))
+paste('The highest timpresison in the data 1s: ', max(nw.data$Google_Impressions))
+```
+
+The `Google impressions` in the data across all divisions range from 7 to 17,150,439. For this reason, the log transformation of the `Google_impression` will be used in this analysis.
+
+```{r log transform }
+nw.data$Log_Google_Impressions <- log(nw.data$Google_Impressions)
+
+paste('The lowest impression in the data is: ', min(nw.data$Log_Google_Impressions))
+paste('The highest timpresison in the data 1s: ', max(nw.data$Log_Google_Impression))
+```
+
+Due to the log transformation, the range of the scaled google impression is smaller when compared to the previous values.
+
+```{r}
+nw.data <- nw.data %>%
+  mutate(Division = case_when(
+    Division == "A" ~ 1,
+    Division == "Z" ~ 0
+  )) |> select(c('Log_Google_Impressions', 'Division'))
+head(nw.data)
+```
