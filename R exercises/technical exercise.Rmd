@@ -1,0 +1,290 @@
+---
+title: 'Recast : Technical Exercise'
+author: "Taiwo Owoseni"
+date: "28/12/2022"
+output: pdf_document
+---
+
+## Instructions
+
+Clean and join the two datasets so that there is 1 column for each variable (channels and revenue) and 1 row for each date.
+
+a. Please make note of any concerns you have with the data (ex. missing data, potential data errors etc.)
+
+b. Export this to a CSV file
+
+## Exercise
+
+1\. Provide answers to the below questions with visualizations. Note: there may be numerous ways to interpret the questions below and therefore there are not necessarily "correct" answers to some of these questions. 
+
+a. Which channel had the most spend in 2022? - **descriptive\<done>**
+
+b. Which channel had the largest increase in spend so far in 2022 compared to the same date range in 2021?-**exploratory**
+
+c. Did Acme spend more with Google or Facebook in 2022? How has this changed since 2021?- **exploratory**
+
+d. Which retailer (DTC, Amazon or Walmart) accounted for the most revenue in October 2022?-**descriptive?predicitve?**
+
+e. In terms of total revenue, are there any anomalous days?- **exploratory\<done>**
+
+f. In which month of the year does Acme tend make the most revenue?**- exploratory\<done>**
+
+g. Does Acme's marketing spend tend to follow a similar pattern to revenue?-- **exploratory**
+
+## Import Libraries
+
+```{r libraries}
+library(tidyverse)
+library(broom)
+library(repr)
+library(reshape2)
+library(ggplot2)
+library(stringr)
+library(tidyverse)
+```
+
+### Exploring the Data set
+
+```{r}
+acm.spend <- read_csv('acme_spend.csv')
+acm.rev <- read_csv('acme_revenue.csv')
+
+head(acm.spend)
+```
+
+```{r}
+head(acm.rev)
+
+```
+
+```{r}
+dim(acm.rev)
+
+```
+
+```{r}
+dim(acm.spend)
+summary(acm.spend)
+
+```
+
+```{r}
+null.rev<- acm.rev%>%filter_all(any_vars(is.na(.))) 
+null.rev
+```
+
+```{r}
+
+ acm.rev<- acm.rev |>
+          select(-c(...1)) |>
+          na.omit()
+ 
+acm.spend<- acm.spend|>
+           select(-c(...1))|> 
+           na.omit()
+
+acm.rev
+```
+
+```{r}
+summary(acm.rev)
+```
+
+```{r}
+# to factors and to date
+# rename spend to value_spend
+# melt revenue data and spend
+
+
+# convert channel to a factor 
+acm.spend$channel<-as.factor(acm.spend$channel)
+acm.spend$date <- as.Date(acm.spend$date, "%m/%d/%y")
+acm.rev$date <-as.Date(acm.rev$date, "%m/%d/%y")
+
+```
+
+```{r}
+acm.spend%>%
+ggplot( aes(x=channel, y=spend, fill=channel)) +
+    geom_boxplot() +
+    ggtitle("Spend boxplot to find outliers") +
+   scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+```{r}
+# creating the modified dataframe
+acm.rev.num<-c('revenue_dtc','revenue_amazon', 'revenue_walmart')
+rev.num <- melt(acm.rev[acm.rev.num], measure.vars= acm.rev.num)
+  
+rev.num%>%
+ggplot( aes(x=variable, y=value, fill=variable)) +
+    geom_boxplot() +
+    ggtitle("Revenue boxplot to find outliers") 
+
+
+```
+
+```{r}
+acm.rev.num<-c('revenue_dtc','revenue_amazon', 'revenue_walmart')
+acm.rev.melt <- melt(acm.rev, measure.vars= acm.rev.num, id.vars = "date", variable.name="revenue_type", value.name="revenue_value" )
+acm.rev.melt
+```
+
+```{r}
+
+acm.spend.spread <- pivot_wider(acm.spend, names_from = "channel", values_from ="spend")
+
+```
+
+```{r}
+acm.spend.spread%>% filter_all(any_vars(is.na(.))) 
+```
+
+### **Joining the data sets**
+
+```{r}
+# join by date
+df<- left_join(acm.rev.melt, acm.spend.spread, by="date")
+df
+```
+
+-----
+
+```{r}
+summary(df)
+```
+
+```{r}
+null.data <- df%>% filter_all(any_vars(is.na(.))) 
+null.data
+
+```
+
+```{r}
+# replace NAN with 0
+df <- replace(df, is.na(df), 0)
+null.data <- df%>% filter_all(any_vars(is.na(.))) 
+null.data
+```
+
+##  Which channel had the most spend in 2022
+
+Answer : Online videos \<be more detailed>
+
+```{r}
+# aggregate the data on year. 
+# Sum up all the channel spending for 2022 
+
+df$year<- as.factor(format(df$date, format="%Y"))
+
+df|>
+  filter(year == 2022)|>
+  summarize_at(vars(facebook_prospecting:online_video), mean)|>
+  pivot_longer(cols = c("facebook_prospecting":"online_video"),
+  names_to = "channels", values_to="spent")|>
+  ggplot( aes(x=channels, y=spent)) + 
+  geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+##  Which retailer (DTC, Amazon or Walmart) accounted for the most revenue in October 2022?
+
+Observation: The dataset does not contain information for October 2022
+
+```{r}
+# aggregate the data on year. 
+# Sum up all the channel spending for 2022 
+
+df$year<- as.factor(format(df$date, format="%Y"))
+df$month <-  as.factor(format(df$date, format="%m"))
+df$month_date <- paste( df$month ," ",  df$year)
+df
+```
+
+```{r}
+df|>
+  filter(year == "10 2022")|>
+  pivot_longer(cols = c("facebook_prospecting":"online_video"),
+  names_to = "channels", values_to="spent")
+```
+
+## In terms of total revenue, are there any anomalous days?- **Exploratory**
+
+```{r}
+ts.plot <- ggplot(data= df, aes(x=date, y= revenue_value, group = revenue_type,colour = revenue_type)) + geom_line() 
+ts.plot
+```
+
+From the time series plot, anomalies are present in amazon's revenue in the years 2022 and 2022. anomalies are also present in Walmart's revenue in the year 2022 and in DTC's revenue, early 2020.
+
+Graphically, we can see that these are the lowest points in the graph, for this reason, we will filter them out and plot the graph again.
+
+```{r}
+revdtc<- filter(df, revenue_type =='revenue_dtc')$revenue_value
+rev.dtc.outliers <- boxplot(revdtc, plot=FALSE)$out
+
+rev.dtc.outliers
+
+df<- df[-which(df$revenue_value %in% rev.dtc.outliers),]
+df
+```
+
+```{r}
+ts.plot <- ggplot(data= df, aes(x=date, y= revenue_value, group = revenue_type,colour = revenue_type)) + geom_line() 
+ts.plot
+```
+
+##  In which month of the year does Acme tend make the most revenue? - Exploratory
+
+```{r}
+monthly.rev <- df%>%
+  group_by(month)|>
+  summarise(monthly_sum_revenue = sum(revenue_value))|>
+  ggplot(aes(y = monthly_sum_revenue, x= month)) +
+  geom_bar(stat = 'identity')
+
+monthly.rev
+```
+
+**Answer**: The total revenue for Acme In the month of March is the highest
+
+## Which channel had the largest increase in spend so far in 2022 compared to the same date range in  2021?
+
+```{r fig.height = 10, fig.width = 5}
+channels<-names(df)[4:13]
+colums <- c("date","year", channels)
+
+monthly.rev <- df%>%
+   filter(year %in% c(2020, 2021))|>
+   select(colums)
+
+monthly.rev<- pivot_longer(monthly.rev, cols = names(monthly.rev)[3:11], names_to = "channels", values_to = "spent")
+
+monthly.rev|>
+  ggplot(aes(y = spent, x = date, group = year))+
+  geom_line()+
+  
+  facet_grid(channels ~.)
+```
+
+Linear Tv, in the second half of 2020 month, there is no spending, but in 2021, there is an increase in spending
+
+## Did Acme spend more with Google or Facebook in 2022? How has this changed since 2021?- **exploratory**
+
+```{r fig.height = 10, fig.width = 5}
+channels<- c("facebook_prospecting", "facebook_retargeting", "google_branded_search","google_nonbranded_search")
+
+colums <- c("date","year", channels)
+
+monthly.rev <- df%>%
+   filter(year %in% c(2021, 2022))|>
+   select(colums)
+
+monthly.rev<- pivot_longer(monthly.rev, cols = names(monthly.rev)[3:6], names_to = "channels", values_to = "spent")
+
+monthly.rev|>
+  ggplot(aes(y = spent, x = date, group = year))+
+  geom_line()+
+  
+  facet_grid(channels ~.)
+```
